@@ -504,8 +504,10 @@ static int count_configs(struct usb_composite_dev *cdev, unsigned type)
 	int				ss = 0;
 
 	if (gadget_is_dualspeed(gadget)) {
-		if (gadget->speed == USB_SPEED_HIGH)
+		if (gadget->speed == USB_SPEED_HIGH) {
 			hs = 1;
+			printk("high speed:%s\n", __func__);
+		}
 		if (gadget->speed == USB_SPEED_SUPER)
 			ss = 1;
 		if (type == USB_DT_DEVICE_QUALIFIER)
@@ -525,6 +527,7 @@ static int count_configs(struct usb_composite_dev *cdev, unsigned type)
 		}
 		count++;
 	}
+	printk("count:%d\n",count);
 	return count;
 }
 
@@ -1488,6 +1491,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		switch (w_value >> 8) {
 
 		case USB_DT_DEVICE:
+			printk("DEVICE_DESC\n");
 			cdev->desc.bNumConfigurations =
 				count_configs(cdev, USB_DT_DEVICE);
 			cdev->desc.bMaxPacketSize0 =
@@ -1518,11 +1522,13 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 				break;
 			/* FALLTHROUGH */
 		case USB_DT_CONFIG:
+			printk("CONFIG_DESC\n");
 			value = config_desc(cdev, w_value);
 			if (value >= 0)
 				value = min(w_length, (u16) value);
 			break;
 		case USB_DT_STRING:
+			printk("STRING_DESC\n");
 			value = get_string(cdev, req->buf,
 					w_index, w_value & 0xff);
 			if (value >= 0)
@@ -1539,6 +1545,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 
 	/* any number of configs can work */
 	case USB_REQ_SET_CONFIGURATION:
+			printk("SET_CONFIGURATION\n");
 		if (ctrl->bRequestType != 0)
 			goto unknown;
 		if (gadget_is_otg(gadget)) {
@@ -1554,6 +1561,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 		spin_unlock(&cdev->lock);
 		break;
 	case USB_REQ_GET_CONFIGURATION:
+			printk("GET_CONFIGURATION\n");
 		if (ctrl->bRequestType != USB_DIR_IN)
 			goto unknown;
 		if (cdev->config)
@@ -1633,6 +1641,7 @@ composite_setup(struct usb_gadget *gadget, const struct usb_ctrlrequest *ctrl)
 	 */
 	case USB_REQ_CLEAR_FEATURE:
 	case USB_REQ_SET_FEATURE:
+		printk("SET/CLEAR_FEATURE\n");
 		if (!gadget_is_superspeed(gadget))
 			goto unknown;
 		if (ctrl->bRequestType != (USB_DIR_OUT | USB_RECIP_INTERFACE))

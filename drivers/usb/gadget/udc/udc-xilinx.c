@@ -560,7 +560,7 @@ static void xudc_done(struct xusb_ep *ep, struct xusb_req *req, int status)
 		status = req->usb_req.status;
 
 	if (status && status != -ESHUTDOWN)
-		dev_dbg(udc->dev, "%s done %p, status %d\n",
+		dev_info(udc->dev, "%s done %p, status %d\n",
 			ep->ep_usb.name, req, status);
 	/* unmap request if DMA is present*/
 	if (udc->dma_enabled && ep->epnumber && req->usb_req.length)
@@ -594,7 +594,7 @@ static int xudc_read_fifo(struct xusb_ep *ep, struct xusb_req *req)
 	struct xusb_udc *udc = ep->udc;
 
 	if (ep->buffer0ready && ep->buffer1ready) {
-		dev_dbg(udc->dev, "Packet NOT ready!\n");
+		dev_info(udc->dev, "Packet NOT ready!\n");
 		return retval;
 	}
 top:
@@ -620,7 +620,7 @@ top:
 		 * discard the extra data.
 		 */
 		if (req->usb_req.status != -EOVERFLOW)
-			dev_dbg(udc->dev, "%s overflow %d\n",
+			dev_info(udc->dev, "%s overflow %d\n",
 				ep->ep_usb.name, count);
 		req->usb_req.status = -EOVERFLOW;
 		xudc_done(ep, req, -EOVERFLOW);
@@ -631,7 +631,7 @@ top:
 	switch (ret) {
 	case 0:
 		req->usb_req.actual += min(count, bufferspace);
-		dev_dbg(udc->dev, "read %s, %d bytes%s req %p %d/%d\n",
+		dev_info(udc->dev, "read %s, %d bytes%s req %p %d/%d\n",
 			ep->ep_usb.name, count, is_short ? "/S" : "", req,
 			req->usb_req.actual, req->usb_req.length);
 		bufferspace -= count;
@@ -651,7 +651,7 @@ top:
 		}
 		break;
 	case -EAGAIN:
-		dev_dbg(udc->dev, "receive busy\n");
+		dev_info(udc->dev, "receive busy\n");
 		break;
 	case -EINVAL:
 	case -ETIMEDOUT:
@@ -702,7 +702,7 @@ static int xudc_write_fifo(struct xusb_ep *ep, struct xusb_req *req)
 			else
 				is_last = 1;
 		}
-		dev_dbg(udc->dev, "%s: wrote %s %d bytes%s%s %d left %p\n",
+		dev_info(udc->dev, "%s: wrote %s %d bytes%s%s %d left %p\n",
 			__func__, ep->ep_usb.name, length, is_last ? "/L" : "",
 			is_short ? "/S" : "",
 			req->usb_req.length - req->usb_req.actual, req);
@@ -713,7 +713,7 @@ static int xudc_write_fifo(struct xusb_ep *ep, struct xusb_req *req)
 		}
 		break;
 	case -EAGAIN:
-		dev_dbg(udc->dev, "Send busy\n");
+		dev_info(udc->dev, "Send busy\n");
 		break;
 	case -EINVAL:
 	case -ETIMEDOUT:
@@ -762,12 +762,12 @@ static int xudc_ep_set_halt(struct usb_ep *_ep, int value)
 	udc = ep->udc;
 
 	if (ep->is_in && (!list_empty(&ep->queue)) && value) {
-		dev_dbg(udc->dev, "requests pending can't halt\n");
+		dev_info(udc->dev, "requests pending can't halt\n");
 		return -EAGAIN;
 	}
 
 	if (ep->buffer0ready || ep->buffer1ready) {
-		dev_dbg(udc->dev, "HW buffers busy can't halt\n");
+		dev_info(udc->dev, "HW buffers busy can't halt\n");
 		return -EAGAIN;
 	}
 
@@ -821,7 +821,7 @@ static int __xudc_ep_enable(struct xusb_ep *ep,
 
 	switch (tmp) {
 	case USB_ENDPOINT_XFER_CONTROL:
-		dev_dbg(udc->dev, "only one control endpoint\n");
+		dev_info(udc->dev, "only one control endpoint\n");
 		/* NON- ISO */
 		ep->is_iso = 0;
 		return -EINVAL;
@@ -829,7 +829,7 @@ static int __xudc_ep_enable(struct xusb_ep *ep,
 		/* NON- ISO */
 		ep->is_iso = 0;
 		if (maxpacket > 64) {
-			dev_dbg(udc->dev, "bogus maxpacket %d\n", maxpacket);
+			dev_info(udc->dev, "bogus maxpacket %d\n", maxpacket);
 			return -EINVAL;
 		}
 		break;
@@ -838,7 +838,7 @@ static int __xudc_ep_enable(struct xusb_ep *ep,
 		ep->is_iso = 0;
 		if (!(is_power_of_2(maxpacket) && maxpacket >= 8 &&
 				maxpacket <= 512)) {
-			dev_dbg(udc->dev, "bogus maxpacket %d\n", maxpacket);
+			dev_info(udc->dev, "bogus maxpacket %d\n", maxpacket);
 			return -EINVAL;
 		}
 		break;
@@ -854,7 +854,7 @@ static int __xudc_ep_enable(struct xusb_ep *ep,
 	ep->rambase = rambase[ep->epnumber];
 	xudc_epconfig(ep, udc);
 
-	dev_dbg(udc->dev, "Enable Endpoint %d max pkt is %d\n",
+	dev_info(udc->dev, "Enable Endpoint %d max pkt is %d\n",
 		ep->epnumber, maxpacket);
 
 	/* Enable the End point.*/
@@ -871,6 +871,7 @@ static int __xudc_ep_enable(struct xusb_ep *ep,
 
 	/* for OUT endpoint set buffers ready to receive */
 	if (ep->epnumber && !ep->is_in) {
+		printk("setting BRR\n");
 		udc->write_fn(udc->addr, XUSB_BUFFREADY_OFFSET,
 			      1 << ep->epnumber);
 		ep->buffer0ready = 1;
@@ -907,7 +908,7 @@ static int xudc_ep_enable(struct usb_ep *_ep,
 	udc = ep->udc;
 
 	if (!udc->driver || udc->gadget.speed == USB_SPEED_UNKNOWN) {
-		dev_dbg(udc->dev, "bogus device state\n");
+		dev_info(udc->dev, "bogus device state\n");
 		return -ESHUTDOWN;
 	}
 
@@ -947,7 +948,7 @@ static int xudc_ep_disable(struct usb_ep *_ep)
 	ep->desc = NULL;
 	ep->ep_usb.desc = NULL;
 
-	dev_dbg(udc->dev, "USB Ep %d disable\n ", ep->epnumber);
+	dev_info(udc->dev, "USB Ep %d disable\n ", ep->epnumber);
 	/* Disable the endpoint.*/
 	epcfg = udc->read_fn(udc->addr + ep->offset);
 	epcfg &= ~XUSB_EP_CFG_VALID_MASK;
@@ -1007,13 +1008,15 @@ static int __xudc_ep0_queue(struct xusb_ep *ep0, struct xusb_req *req)
 	struct xusb_udc *udc = ep0->udc;
 	u32 length;
 	u8 *corebuf;
+	int i;
+	u8 *mybuff;
 
 	if (!udc->driver || udc->gadget.speed == USB_SPEED_UNKNOWN) {
-		dev_dbg(udc->dev, "%s, bogus device state\n", __func__);
+		dev_info(udc->dev, "%s, bogus device state\n", __func__);
 		return -EINVAL;
 	}
 	if (!list_empty(&ep0->queue)) {
-		dev_dbg(udc->dev, "%s:ep0 busy\n", __func__);
+		dev_info(udc->dev, "%s:ep0 busy\n", __func__);
 		return -EBUSY;
 	}
 
@@ -1029,6 +1032,10 @@ static int __xudc_ep0_queue(struct xusb_ep *ep0, struct xusb_req *req)
 			   udc->addr);
 		length = req->usb_req.actual = min_t(u32, length,
 						     EP0_MAX_PACKET);
+		mybuff = req->usb_req.buf;
+	//	for (i= 0; i < length; i++)
+	//		printk("0x%x ",*mybuff++);
+	//		printk("\n");
 		memcpy(corebuf, req->usb_req.buf, length);
 		udc->write_fn(udc->addr, XUSB_EP_BUF0COUNT_OFFSET, length);
 		udc->write_fn(udc->addr, XUSB_BUFFREADY_OFFSET, 1);
@@ -1087,13 +1094,13 @@ static int xudc_ep_queue(struct usb_ep *_ep, struct usb_request *_req,
 	unsigned long flags;
 
 	if (!ep->desc) {
-		dev_dbg(udc->dev, "%s:queing request to disabled %s\n",
+		dev_info(udc->dev, "%s:queing request to disabled %s\n",
 			__func__, ep->name);
 		return -ESHUTDOWN;
 	}
 
 	if (!udc->driver || udc->gadget.speed == USB_SPEED_UNKNOWN) {
-		dev_dbg(udc->dev, "%s, bogus device state\n", __func__);
+		dev_info(udc->dev, "%s, bogus device state\n", __func__);
 		return -EINVAL;
 	}
 
@@ -1106,7 +1113,7 @@ static int xudc_ep_queue(struct usb_ep *_ep, struct usb_request *_req,
 		ret = usb_gadget_map_request(&udc->gadget, &req->usb_req,
 					     ep->is_in);
 		if (ret) {
-			dev_dbg(udc->dev, "gadget_map failed ep%d\n",
+			dev_info(udc->dev, "gadget_map failed ep%d\n",
 				ep->epnumber);
 			spin_unlock_irqrestore(&udc->lock, flags);
 			return -EAGAIN;
@@ -1115,11 +1122,11 @@ static int xudc_ep_queue(struct usb_ep *_ep, struct usb_request *_req,
 
 	if (list_empty(&ep->queue)) {
 		if (ep->is_in) {
-			dev_dbg(udc->dev, "xudc_write_fifo from ep_queue\n");
+			dev_info(udc->dev, "xudc_write_fifo from ep_queue\n");
 			if (!xudc_write_fifo(ep, req))
 				req = NULL;
 		} else {
-			dev_dbg(udc->dev, "xudc_read_fifo from ep_queue\n");
+			dev_info(udc->dev, "xudc_read_fifo from ep_queue\n");
 			if (!xudc_read_fifo(ep, req))
 				req = NULL;
 		}
@@ -1469,12 +1476,12 @@ static void xudc_startup_handler(struct xusb_udc *udc, u32 intrstatus)
 
 	if (intrstatus & XUSB_STATUS_RESET_MASK) {
 
-		dev_dbg(udc->dev, "Reset\n");
+		dev_info(udc->dev, "Reset\n");
 
 		if (intrstatus & XUSB_STATUS_HIGH_SPEED_MASK)
 			udc->gadget.speed = USB_SPEED_HIGH;
 		else
-			udc->gadget.speed = USB_SPEED_FULL;
+			udc->gadget.speed = USB_SPEED_HIGH;
 
 		xudc_stop_activity(udc);
 		xudc_clear_stall_all_ep(udc);
@@ -1492,7 +1499,7 @@ static void xudc_startup_handler(struct xusb_udc *udc, u32 intrstatus)
 	}
 	if (intrstatus & XUSB_STATUS_SUSPEND_MASK) {
 
-		dev_dbg(udc->dev, "Suspend\n");
+		dev_info(udc->dev, "Suspend\n");
 
 		/* Enable the reset, resume and disconnect */
 		intrreg = udc->read_fn(udc->addr + XUSB_IER_OFFSET);
@@ -1514,7 +1521,7 @@ static void xudc_startup_handler(struct xusb_udc *udc, u32 intrstatus)
 		dev_WARN_ONCE(udc->dev, condition,
 				"Resume IRQ while not suspended\n");
 
-		dev_dbg(udc->dev, "Resume\n");
+		dev_info(udc->dev, "Resume\n");
 
 		/* Enable the reset, suspend and disconnect */
 		intrreg = udc->read_fn(udc->addr + XUSB_IER_OFFSET);
@@ -1532,7 +1539,7 @@ static void xudc_startup_handler(struct xusb_udc *udc, u32 intrstatus)
 	}
 	if (intrstatus & XUSB_STATUS_DISCONNECT_MASK) {
 
-		dev_dbg(udc->dev, "Disconnect\n");
+		dev_info(udc->dev, "Disconnect\n");
 
 		/* Enable the reset, resume and suspend */
 		intrreg = udc->read_fn(udc->addr + XUSB_IER_OFFSET);
@@ -1746,7 +1753,13 @@ static void xudc_handle_setup(struct xusb_udc *udc)
 	udc->setup.wValue = cpu_to_le16(setup.wValue);
 	udc->setup.wIndex = cpu_to_le16(setup.wIndex);
 	udc->setup.wLength = cpu_to_le16(setup.wLength);
-
+/*
+	printk("bRequestType:0x%x\n", udc->setup.bRequestType);
+	printk("bRequest:0x%x\n", udc->setup.bRequest);
+	printk("wValue:0x%x\n", udc->setup.wValue);
+	printk("wIndex:0x%x\n", udc->setup.wIndex);
+	printk("wLength:0x%x\n", udc->setup.wLength);
+*/
 	/* Clear previous requests */
 	xudc_nuke(ep0, -ECONNRESET);
 
@@ -1925,12 +1938,11 @@ static void xudc_ctrl_ep_handler(struct xusb_udc *udc, u32 intrstatus)
 
 	if (intrstatus & XUSB_STATUS_SETUP_PACKET_MASK) {
 		xudc_handle_setup(udc);
-	} else {
-		if (intrstatus & XUSB_STATUS_FIFO_BUFF_RDY_MASK)
-			xudc_ep0_out(udc);
-		else if (intrstatus & XUSB_STATUS_FIFO_BUFF_FREE_MASK)
+	} else if (intrstatus & XUSB_STATUS_FIFO_BUFF_FREE_MASK) {
 			xudc_ep0_in(udc);
-	}
+	} else if (intrstatus & XUSB_STATUS_FIFO_BUFF_RDY_MASK) {
+			xudc_ep0_out(udc);
+	} 
 }
 
 /**
@@ -1995,6 +2007,7 @@ static irqreturn_t xudc_irq(int irq, void *_udc)
 
 	/* Read the Interrupt Status Register.*/
 	intrstatus = udc->read_fn(udc->addr + XUSB_STATUS_OFFSET);
+//	printk("LINUX IRQ ISR:0x%x\n", intrstatus);
 
 	/* Call the handler for the event interrupt.*/
 	if (intrstatus & XUSB_STATUS_INTR_EVENT_MASK) {
@@ -2082,7 +2095,7 @@ static int xudc_probe(struct platform_device *pdev)
 	ret = devm_request_irq(&pdev->dev, irq, xudc_irq, 0,
 			       dev_name(&pdev->dev), udc);
 	if (ret < 0) {
-		dev_dbg(&pdev->dev, "unable to request irq %d", irq);
+		dev_info(&pdev->dev, "unable to request irq %d", irq);
 		goto fail;
 	}
 
@@ -2098,6 +2111,7 @@ static int xudc_probe(struct platform_device *pdev)
 	spin_lock_init(&udc->lock);
 
 	/* Check for IP endianness */
+#if 0
 	udc->write_fn = xudc_write32_be;
 	udc->read_fn = xudc_read32_be;
 	udc->write_fn(udc->addr, XUSB_TESTMODE_OFFSET, TEST_J);
@@ -2106,6 +2120,10 @@ static int xudc_probe(struct platform_device *pdev)
 		udc->write_fn = xudc_write32;
 		udc->read_fn = xudc_read32;
 	}
+#endif
+	udc->write_fn = xudc_write32;
+	udc->read_fn = xudc_read32;
+
 	udc->write_fn(udc->addr, XUSB_TESTMODE_OFFSET, 0);
 
 	xudc_eps_init(udc);
@@ -2131,7 +2149,7 @@ static int xudc_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, udc);
 
-	dev_vdbg(&pdev->dev, "%s at 0x%08X mapped to %p %s\n",
+	dev_info(&pdev->dev, "%s at 0x%08X mapped to %p %s\n",
 		 driver_name, (u32)res->start, udc->addr,
 		 udc->dma_enabled ? "with DMA" : "without DMA");
 
