@@ -1,0 +1,20 @@
+/dts-v1/;
+#include "msf2.dtsi"
+
+/ {
+	model = "Microsemi SmartFusion 2 development board";
+	compatible = "st,msf2";
+
+	chosen {
+		bootargs = "console=ttyS0,115200n8 panic=10 mem=127M@0xa0000000 earlyprintk";
+		stdout-path = "serial0:115200n8";
+	};
+
+	memory {
+		reg = <0xa0000000 0x2000000>;
+	};
+
+	aliases {
+		serial0 = &uart0;
+	};
+};

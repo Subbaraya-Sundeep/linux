@@ -883,6 +883,14 @@ config ARCH_STM32
 	help
 	  Support for STMicroelectronics STM32 processors.
 
+config ARCH_MSF2
+	bool "Microsemi Smart Fusion 2"
+	depends on ARM_SINGLE_ARMV7M
+	select ARMV7M_SYSTICK
+	select CLKSRC_MSF2
+	help
+	  Support for Microsemi Fusion 2.
+
 # Definitions to make life easier
 config ARCH_ACORN
 	bool

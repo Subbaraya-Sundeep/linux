@@ -1,0 +1,35 @@
+#include "armv7-m.dtsi"
+
+/ {
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			compatible = "arm,cortex-m3";
+			device_type = "cpu";
+			reg = <0x0>;
+			clock-frequency = <166000000>;
+		};
+	};
+
+	soc {
+		uart0: serial@40000000 {
+			compatible = "ns16550";
+			reg = <0x40000000 0x1000>;
+			interrupts = <10>;
+			clock-frequency = <83000000>;
+			status = "okay";
+			reg-shift = <2>;
+			no-loopback-test;
+		};
+
+		timer: timer@40004000 {
+			compatible = "ms,msf2-timer";
+			reg = <0x40004000 0x0100>;
+			interrupts = <14>;
+			status = "okay";
+			clock-frequency = <83000000>;
+		};
+	};
+};
