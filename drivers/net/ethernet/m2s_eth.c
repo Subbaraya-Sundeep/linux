@@ -20,10 +20,14 @@
 #include <linux/etherdevice.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/mii.h>
 #include <linux/phy.h>
 #include <linux/netdevice.h>
 #include <linux/platform_device.h>
+#include <linux/of_address.h>
+#include <linux/of_device.h>
+#include <linux/of_platform.h>
+#include <linux/of_mdio.h>
+#include <linux/of_net.h>
 
 #include <asm/setup.h>
 
@@ -215,12 +219,7 @@
 #define debug(fmt,args...)
 #endif
 
-struct eth_m2s_platform_data {
-	unsigned long	freq_src;		/* MAC source clock	*/
-	unsigned long	freq_mdc;		/* PHY MDC clock	*/
-	unsigned long	flags;			/* various options	*/
 #define ETH_M2S_FLAGS_MODE_SGMII	(1 << 0)
-};
 
 /*
  * M2S MAC Device descriptor
@@ -233,6 +232,7 @@ struct m2s_mac_dev {
 	struct napi_struct		napi;
 
 	struct phy_device		*phy_dev;
+	struct device_node *phy_node;
 	struct mii_bus			*mii_bus;
 
 	struct {
@@ -351,7 +351,7 @@ speed:
 	/*
 	 * Speed changed
 	 */
-	M2S_SYSREG->mac_cr &= ~(M2S_SYS_MAC_CR_LS_MSK << M2S_SYS_MAC_CR_LS_BIT);
+	//M2S_SYSREG->mac_cr &= ~(M2S_SYS_MAC_CR_LS_MSK << M2S_SYS_MAC_CR_LS_BIT);
 	switch (phy_dev->speed) {
 	case 10:
 		M2S_MAC_CFG(d)->if_ctrl &= ~M2S_MAC_INTF_SPEED_100;
@@ -369,7 +369,7 @@ speed:
 		printk(KERN_WARNING "%s: Bad speed(%d)\n", dev->name, d->speed);
 		goto link;
 	}
-	M2S_SYSREG->mac_cr |= msk;
+	//M2S_SYSREG->mac_cr |= msk;
 	d->speed = phy_dev->speed;
 	change = 1;
 link:
@@ -461,8 +461,9 @@ static int m2s_mii_write(struct mii_bus *bus, int phy_id, int reg, u16 data)
 static int m2s_mii_init(struct net_device *dev)
 {
 	struct m2s_mac_dev	*d = netdev_priv(dev);
+	struct device_node *np = of_get_parent(d->phy_node);
 	struct phy_device	*phy_dev;
-	int			rv, i;
+	int	rv;
 
 	d->mii_bus = mdiobus_alloc();
 	if (!d->mii_bus) {
@@ -471,38 +472,24 @@ static int m2s_mii_init(struct net_device *dev)
 		goto err_free_none;
 	}
 
-	d->mii_bus->name = "m2f MII bus";
+	d->mii_bus->name = "msf2 MII bus";
 	snprintf(d->mii_bus->id, MII_BUS_ID_SIZE, "%02x", d->ptf_dev->id);
 
 	d->mii_bus->read = m2s_mii_read;
 	d->mii_bus->write = m2s_mii_write;
 	d->mii_bus->priv = d;
 	d->mii_bus->parent = &d->ptf_dev->dev;
-	d->mii_bus->phy_mask = 0xFFFFFFF0;
 
-	rv = mdiobus_register(d->mii_bus);
+	rv = of_mdiobus_register(d->mii_bus, np);
 	if (rv) {
-		printk(KERN_ERR "%s: mii bus registration error %d\n",
-			__func__, rv);
+		printk("Failed to register mdio bus.\n");
 		goto err_free_alloc;
 	}
 
-	phy_dev = NULL;
-	for (i = 0; i < PHY_MAX_ADDR; i++) {
-		if (!d->mii_bus->phy_map[i])
-			continue;
-		phy_dev = d->mii_bus->phy_map[i];
-		printk(KERN_INFO "found PHY id 0x%x addr %d\n",
-			phy_dev->phy_id, phy_dev->addr);
-		break;
-	}
-	if (!phy_dev) {
-		printk(KERN_ERR "no PHY found\n");
-		goto err_free_reg;
-	}
-
-	phy_dev = phy_connect(dev, dev_name(&phy_dev->dev),
-			      &m2s_phy_adjust_link, 0, PHY_INTERFACE_MODE_MII);
+	phy_dev = of_phy_connect(dev, d->phy_node,
+					     m2s_phy_adjust_link, 0,
+					     PHY_INTERFACE_MODE_MII);
+	
 	if (IS_ERR(phy_dev)) {
 		printk(KERN_ERR "%s: Could not attach to PHY\n", dev->name);
 		rv = -ENODEV;
@@ -632,19 +619,20 @@ static __init int m2s_mac_hw_init(struct m2s_mac_dev *d)
 	/*
 	 * Release the Ethernet MAC from reset
 	 */
-	M2S_SYSREG->soft_reset_cr &= ~M2S_SYS_SOFT_RST_CR_MAC;
+	//M2S_SYSREG->soft_reset_cr &= ~M2S_SYS_SOFT_RST_CR_MAC;
 
 	/*
 	 * Set-up CR
 	 */
-	M2S_SYSREG->mac_cr &= ~(M2S_SYS_MAC_CR_PM_MSK << M2S_SYS_MAC_CR_PM_BIT);
+	//M2S_SYSREG->mac_cr &= ~(M2S_SYS_MAC_CR_PM_MSK << M2S_SYS_MAC_CR_PM_BIT);
+/*
 	if (!(d->flags & ETH_M2S_FLAGS_MODE_SGMII))
-		M2S_SYSREG->mac_cr |=
-			M2S_SYS_MAC_CR_PM_MII << M2S_SYS_MAC_CR_PM_BIT;
+		//M2S_SYSREG->mac_cr |=
+	//		M2S_SYS_MAC_CR_PM_MII << M2S_SYS_MAC_CR_PM_BIT;
 	else
-		M2S_SYSREG->mac_cr |=
+		//M2S_SYSREG->mac_cr |=
 			M2S_SYS_MAC_CR_PM_TBI << M2S_SYS_MAC_CR_PM_BIT;
-
+*/
 	/*
 	 * Reset all PE-MCXMAC modules, and configure
 	 */
@@ -720,8 +708,6 @@ static __init int m2s_mac_hw_init(struct m2s_mac_dev *d)
 
 	rv = 0;
 out:
-	if (rv)
-		M2S_SYSREG->soft_reset_cr |= M2S_SYS_SOFT_RST_CR_MAC;
 
 	return rv;
 }
@@ -816,18 +802,16 @@ int m2s_mac_rx_packets(struct m2s_mac_dev *d, int limit)
 			goto next;
 		}
 
-		skb = dev_alloc_skb(size - 4 + NET_IP_ALIGN);
+		skb = netdev_alloc_skb_ip_align(dev, M2S_MAC_FRM_SIZE);
 		if (unlikely(!skb)) {
 			printk("%s: no mem, drop packet\n", __func__);
 			dev->stats.rx_dropped++;
 			goto next;
 		}
 
-		size -= 4;
 		dev->stats.rx_bytes += size;
 		dev->stats.rx_packets++;
 
-		skb_reserve(skb, NET_IP_ALIGN);
 		skb_put(skb, size);
 		skb_copy_to_linear_data(skb, d->rx.buf[idx], size);
 		skb->protocol = eth_type_trans(skb, dev);
@@ -1042,24 +1026,36 @@ out:
 	return rv;
 }
 
+static void _m2s_mac_net_set_mac_address(struct net_device *dev, u8 *adr)
+{
+	struct m2s_mac_dev	*d = netdev_priv(dev);
+
+	M2S_MAC_CFG(d)->station_addr[0] = (adr[0] << 24) | (adr[1] << 16) |
+					  (adr[2] <<  8) | (adr[3] <<  0);
+	M2S_MAC_CFG(d)->station_addr[1] = (adr[4] << 24) | (adr[5] << 16);
+}
+
 static int m2s_mac_net_set_mac_address(struct net_device *dev, void *p)
 {
 	struct m2s_mac_dev	*d = netdev_priv(dev);
-	u8			*adr = p;
 	int			rv = 0;
+	struct sockaddr *addr = p;
+	u8	*adr = addr->sa_data;
 
 	if (!d || !adr) {
 		printk(KERN_ERR "%s: bad params %p/%p\n", __func__, d, adr);
 		rv = -EINVAL;
 		goto out;
 	}
+	if (netif_running(dev))
+		return -EBUSY;
 
 	debug("%s %02x:%02x:%02x:%02x:%02x:%02x\n", __func__, adr[0], adr[1],
 		adr[2], adr[3], adr[4], adr[5]);
 
-	M2S_MAC_CFG(d)->station_addr[0] = (adr[0] << 24) | (adr[1] << 16) |
-					  (adr[2] <<  8) | (adr[3] <<  0);
-	M2S_MAC_CFG(d)->station_addr[1] = (adr[4] << 24) | (adr[5] << 16);
+	_m2s_mac_net_set_mac_address(dev, adr);
+
+	memcpy(dev->dev_addr, addr->sa_data, dev->addr_len);
 out:
 	return rv;
 }
@@ -1082,11 +1078,9 @@ static const struct net_device_ops m2s_mac_netdev_ops = {
 
 static int __init m2s_mac_probe(struct platform_device *pd)
 {
-	struct eth_m2s_platform_data	*pdat;
 	struct m2s_mac_dev		*d;
 	struct net_device		*dev;
 	struct resource			*res;
-	char				*p;
 	u32				reg_base;
 	int				rv, irq, i;
 	u8				mac[6];
@@ -1106,9 +1100,16 @@ static int __init m2s_mac_probe(struct platform_device *pd)
 		goto err_free_none;
 	}
 
-	pdat = platform_get_drvdata(pd);
-	if (!pdat) {
-		dev_err(&pd->dev, "no platform data specified\n");
+	rv = of_property_read_u32(pd->dev.of_node, "src-freq", &d->freq_src);
+	if (rv < 0) {
+		dev_err(&pd->dev, "src-freq property not found\n");
+		rv = -EINVAL;
+		goto err_free_none;
+	}
+
+	rv = of_property_read_u32(pd->dev.of_node, "mdc-freq", &d->freq_src);
+	if (rv < 0) {
+		dev_err(&pd->dev, "mdc-freq property not found\n");
 		rv = -EINVAL;
 		goto err_free_none;
 	}
@@ -1131,9 +1132,6 @@ static int __init m2s_mac_probe(struct platform_device *pd)
 	SET_NETDEV_DEV(dev, &pd->dev);
 	spin_lock_init(&d->lock);
 
-	d->freq_src = pdat->freq_src;
-	d->freq_mdc = pdat->freq_mdc;
-	d->flags = pdat->flags;
 
 	if (!M2S_RX_NUM || !M2S_TX_NUM) {
 		dev_err(&pd->dev, "bad rx/tx %d/%d buf number",
@@ -1163,27 +1161,6 @@ static int __init m2s_mac_probe(struct platform_device *pd)
 
 	printk(KERN_INFO "Found M2S MAC at 0x%08x, irq %d\n", reg_base,
 		dev->irq);
-
-	memset(mac, 0, sizeof(mac));
-	p = strnstr(boot_command_line, "ethaddr=", COMMAND_LINE_SIZE);
-	if (p) {
-		int	i;
-		u8	ethaddr[18];
-
-		memcpy(ethaddr, p + strlen("ethaddr="), sizeof(ethaddr));
-		p = ethaddr;
-		for (i = 0; i <= 5; i++) {
-			mac[i] = simple_strtoul(p, &p, 16) |
-				 (simple_strtoul(p, &p, 16) << 4);
-			p++;
-		}
-	}
-
-	if (!is_valid_ether_addr(mac)) {
-		printk(KERN_ERR "MAC addr isn't set or invalid, use random\n");
-		random_ether_addr(mac);
-	}
-	memcpy(dev->dev_addr, mac, sizeof(mac));
 
 	/*
 	 * Use same NAPI weight as in AR71xx driver
@@ -1279,6 +1256,7 @@ static int __init m2s_mac_probe(struct platform_device *pd)
 		goto err_free_hw;
 	}
 
+	d->phy_node = of_parse_phandle(pd->dev.of_node, "phy-handle", 0);
 	rv = m2s_mii_init(dev);
 	if (rv) {
 		dev_err(&pd->dev, "mii init error %d", rv);
@@ -1288,6 +1266,10 @@ static int __init m2s_mac_probe(struct platform_device *pd)
 	if ((d->flags & ETH_M2S_FLAGS_MODE_SGMII)
 			&& msgmii_phy_init(d->mii_bus) < 0)
 		goto out;
+
+	eth_random_addr(mac);
+	memcpy(dev->dev_addr, mac, ETH_ALEN);
+	_m2s_mac_net_set_mac_address(dev, mac);
 
 	rv = 0;
 	goto out;
@@ -1372,30 +1354,23 @@ static int m2s_mac_remove(struct platform_device *pd)
 	return 0;
 }
 
-/*
- * Platform driver instance
- */
-static struct platform_driver m2s_mac_platform_driver = {
-	.probe	= m2s_mac_probe,
-	.remove	= m2s_mac_remove,
-	.driver	= {
-		.name	= M2S_MAC_NAME,
-		.owner	= THIS_MODULE,
-	}
+/* Match table for OF platform binding */
+static const struct of_device_id m2s_mac_match[] = {
+	{ .compatible = "ms,msf2-emac", },
+	{ /* end of list */ },
+};
+MODULE_DEVICE_TABLE(of, m2s_mac_match);
+
+static struct platform_driver xemaclite_of_driver = {
+	.driver = {
+		.name = M2S_MAC_NAME,
+		.of_match_table = m2s_mac_match,
+	},
+	.probe		= m2s_mac_probe,
+	.remove		= m2s_mac_remove,
 };
 
-static int __init m2s_mac_modinit(void)
-{
-	return platform_driver_register(&m2s_mac_platform_driver);
-}
-
-static void __exit m2s_mac_modexit(void)
-{
-	platform_driver_unregister(&m2s_mac_platform_driver);
-}
-
-module_init(m2s_mac_modinit);
-module_exit(m2s_mac_modexit);
+module_platform_driver(xemaclite_of_driver);
 
 MODULE_AUTHOR("Yuri Tikhonov, <yur@emcraft.com>");
 MODULE_DESCRIPTION("Device driver for MAC controller of SmartFusion2");
