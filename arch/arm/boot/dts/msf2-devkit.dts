@@ -6,7 +6,7 @@
 	compatible = "st,msf2";
 
 	chosen {
-		bootargs = "console=ttyS0,115200n8 panic=10 mem=127M@0xa0000000 earlyprintk";
+		bootargs = "console=ttyS0,115200n8 panic=10 mem=64M@0xa0000000 earlyprintk";
 		stdout-path = "serial0:115200n8";
 	};
 

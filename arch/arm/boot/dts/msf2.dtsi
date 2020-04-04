@@ -31,5 +31,25 @@
 			status = "okay";
 			clock-frequency = <83000000>;
 		};
+
+		emac: emac@40041000 {
+			compatible = "ms,msf2-emac";
+			reg = <0x40041000 0x01C0>;
+			interrupts = <12>;
+			status = "okay";
+			src-freq = <143000000>;
+			mdc-freq = <2500000>;
+			phy-mode = "mii";
+			phy-handle = <&ethphy0>;
+
+			mdio {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				ethphy0: ethernet-phy@0 {
+					reg = <1>;
+				};
+			};
+		};
 	};
 };
